@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 
 import { observable, computed, action } from 'mobx';
 import { observer } from 'mobx-react';
+import Fuse from 'fuse.js';
 
 import * as S from './styles';
 import Dialog from 'components/Dialog';
@@ -15,10 +16,26 @@ class PopupSelector extends Component {
 
   @observable highlightedItem = null;
   @observable search = '';
+  searchOptions = {
+    shouldSort: true,
+    includeScore: true,
+    includeMatches: true,
+    threshold: 0.6,
+    location: 0,
+    distance: 100,
+    maxPatternLength: 32,
+    minMatchCharLength: 1,
+    keys: [
+      "name"
+    ]
+  };
 
   @computed
   get foundItems() {
-    return this.props.items.filter(item => item.name.toLowerCase().includes(this.search.toLowerCase()));
+    var fuse = new Fuse(this.props.items, this.searchOptions); // "list" is the item array
+    var result = fuse.search(this.search);
+    debugger;
+    return result.map(({item}) => item);
   }
 
   @action
