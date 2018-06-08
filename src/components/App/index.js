@@ -53,9 +53,14 @@ class App extends Component {
 
         {searchOpened.value === true && (
           <PopupSelector
-            renderItem={({ name, path }) => (
+            renderItem={({ name, path }, {chunks}) => (
               <Horizontal centerV spaceBetween flex={1}>
-                <div>{name}</div>
+                <div>{chunks.map(({str, isMatch}) => {
+                  if (isMatch) {
+                    return <S.FuzzyMatch>{str}</S.FuzzyMatch>
+                  }
+                  return str;
+                })}</div>
                 <div>{path}</div>
               </Horizontal>
             )}

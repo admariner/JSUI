@@ -30,12 +30,121 @@ class PopupSelector extends Component {
     ]
   };
 
+  // encase we decide to use other search tools
+  // we will map the fuse result into a general
+  // result that's not tied to fuse's ways
+  // expected shape of object returned
+  /*
+
+  {
+    item: #this.props.items[one of em]#, // for this search result, this is the original item
+    searchResults: {
+      confidence: 0.8, // out of 1, how close to the search is this
+      chunks: [ // fuzzy search can match multiple parts, where did this match?
+        {
+          str: 'ma',
+          isMatch: true,
+        },
+        {
+          str: 'tch ',
+          isMatch: false,
+        },
+        {
+          str: 're',
+          isMatch: true,
+        },
+        {
+          str: 'sult',
+          isMatch: false,
+        },
+      }
+    }
+  }
+
+   */
+  //
+  mapSearchResult = fuseResult => {
+    const { item, matches, score } = fuseResult || {};
+    const { name: itemName } = item || {};
+
+    // we build the search result chunks off of the fuse match that retuns from the name
+    // part of the search (see fuse options under keys, you can search multiple keys
+    // in fuse and each key search match will result in a matches item. we need the
+    // search on name
+    const nameSearchMatch = matches.find(({value: matchValue}) => matchValue === itemName);
+    const { indices } = nameSearchMatch;
+
+    // itterates over the string of the search result forming chunks
+    // whenever we reach the end of an indicy
+    const chunks = itemName.split('').reduce((accumulator, character, index) => {
+      const completeChunks = accumulator.slice(0, -1);
+      const currentChunk = accumulator.slice(accumulator.length - 1)[0];
+      const { str: currentChunkStr } = currentChunk;
+      const newIndicy = indices.find(([start, end]) =>  start === index);
+      const completeIndicy = indices.find(([start, end]) =>  end === index);
+
+      // if the end of an indicy was found, we can
+      // mark this chunk as isMatch and start a new chunk
+      // todo: if start and end of indicy match, it could be
+      // a end of a non indicy, so cut it off
+      if (completeIndicy) {
+        return [
+          ...completeChunks,
+          {
+            str: currentChunkStr + character,
+            isMatch: true,
+          },
+          {
+            str: '',
+            isMatch: false,
+          },
+        ];
+      }
+
+      if (newIndicy) {
+        // end current chunk as we are at a new indicy
+        // a filter  at the bottom will remove empty chunks
+        // so no worry!
+        return [
+          ...completeChunks,
+          {
+            str: currentChunkStr + character,
+            isMatch: false,
+          },
+          {
+            str: '',
+            isMatch: false,
+          },
+        ];
+      }
+
+      // no match, therefore we are still looking for this chunks end
+      return [
+        ...completeChunks,
+        {
+          str: currentChunkStr + character,
+          isMatch: false,
+        },
+      ]
+    }, [{str: '', isMatch: false}])
+      .filter(({str}) => str !== ''); // last item can be empty, remove if so
+
+    const searchResults = {
+      confidence: 1 - score, // fuse uses 0 as best result and 1 as worse. this inverts that
+      chunks,
+    }
+
+    return {
+      item,
+      searchResults,
+    };
+  };
+
   @computed
   get foundItems() {
     var fuse = new Fuse(this.props.items, this.searchOptions); // "list" is the item array
     var result = fuse.search(this.search);
-    debugger;
-    return result.map(({item}) => item);
+    return result.map(this.mapSearchResult);
   }
 
   @action
@@ -77,8 +186,9 @@ class PopupSelector extends Component {
 
   onChange = e => {
     this.setSearch(e.target.value);
-    let first = this.foundItems[0];
-    this.setHighlighted(first ? first.id : null);
+    const { item } = this.foundItems[0] || {};
+    const { id: firstItemId = null } = item || {};
+    this.setHighlighted(firstItemId);
   };
 
   close = () => {
@@ -89,7 +199,7 @@ class PopupSelector extends Component {
     const { foundItems: items } = this;
 
     if (e.keyCode === Keys.enter) {
-      const foundItem = items.find(i => i.id === this.highlightedItem);
+      const foundItem = items.find(({item}) => item.id === this.highlightedItem);
       return this.choose(foundItem);
     }
 
@@ -134,7 +244,7 @@ class PopupSelector extends Component {
               />
             )}
             <S.Items innerRef={this.itemsRef}>
-              {items.map(item => (
+              {items.map(({item, searchResults}) => (
                 <S.Item
                   id={`item-${item.id}`}
                   isHighlighted={item.id === highlightedItem}
@@ -142,7 +252,7 @@ class PopupSelector extends Component {
                   onClick={() => this.setHighlighted(item.id)}
                   key={item.id}
                 >
-                  {renderItem ? renderItem(item) : item.name}
+                  {renderItem ? renderItem(item, searchResults) : item.name}
                 </S.Item>
               ))}
             </S.Items>

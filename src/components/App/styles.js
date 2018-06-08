@@ -21,3 +21,7 @@ export const Editor = emotion(CodeMirror)({
     fontSize: 15
   }
 });
+
+export const FuzzyMatch = emotion.span({
+  color: 'red',
+});
